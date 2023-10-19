@@ -239,11 +239,20 @@ if bashio::config.true 'lets_encrypt.accept_terms'; then
     set_cpu
 
     # Check if certificate present and will expire within 30 days
-    if openssl x509 -checkend 2592000 -noout -in /ssl/${CERTFILE}
+    if [ -f /ssl/${CERTFILE} ]
     then
-        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") is good for at least 30 more days."
+        expiry="$(openssl x509 -enddate -noout -in /ssl/${CERTFILE} | cut -c10-29)"
+        expiry="$(date -d "${expiry}" -D "%b %d %H:%M:%S %Y" +%s)"
     else
-        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") not found or has less than 30 days left."
+        expiry="$(date +%s)"
+    fi
+    now="$(date +%s)"
+    
+    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 2592000 ]
+    then
+        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") is good for $(((expiry - now)/86400)) days."
+    else
+        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") $(((expiry - now)/86400)) days left."
         
         download_lego
         run_lego
@@ -291,11 +300,14 @@ while true; do
     fi
 
     # Renew cert if it expires within 30 days
-    if openssl x509 -checkend 2592000 -noout -in /ssl/${CERTFILE}
+    expiry="$(openssl x509 -enddate -noout -in /ssl/${CERTFILE} | cut -c10-29)"
+    expiry="$(date -d "${expiry}" -D "%b %d %H:%M:%S %Y" +%s)"
+    now="$(date +%s)"
+    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 2592000 ]
     then
-        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") good for more than 30 days left, no need to renew."
+        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") good for $(((expiry - now)/86400)) more more days, no need to renew."
     else
-        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") has less than 30 days left, renewing..."
+        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") has $(((expiry - now)/86400)) days left, renewing..."
         
         le_renew
     fi
