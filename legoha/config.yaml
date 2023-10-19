@@ -1,9 +1,9 @@
-name: "Lego HomeAssistant"
+name: "Lego HA"
 description: >-
   Free Dynamic DNS (DynDNS or DDNS) service with Let's Encrypt support and wildcard certificates
 version: "1.0.0"
 slug: "legoha"
-url: https://github.com/hakmo/home-assistant-addons/tree/main/legoagh
+url: https://github.com/hakmo/home-assistant-addons/tree/main/legoha
 init: false
 arch:
   - aarch64
