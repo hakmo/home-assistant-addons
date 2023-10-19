@@ -237,6 +237,7 @@ if bashio::config.true 'lets_encrypt.accept_terms'; then
 
     set_os
     set_cpu
+    download_lego
 
     # Check if certificate present and will expire within 30 days
     if [ -f /ssl/${CERTFILE} ]
@@ -254,7 +255,6 @@ if bashio::config.true 'lets_encrypt.accept_terms'; then
     else
         bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") $(((expiry - now)/86400)) days left."
         
-        download_lego
         run_lego
         copy_certificate
     fi
