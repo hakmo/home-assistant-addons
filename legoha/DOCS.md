@@ -26,6 +26,7 @@ lets_encrypt:
   accept_terms: true
   certfile: fullchain.pem
   keyfile: privkey.pem
+email: your@email.com
 token: sdfj-2131023-dslfjsd-12321
 domains:
   - my-domain.duckdns.org

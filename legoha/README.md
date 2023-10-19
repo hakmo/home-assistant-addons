@@ -1,4 +1,4 @@
-# Home Assistant Add-on: legoagh
+# Home Assistant Add-on: legoha
 
 Automatically update your Duck DNS IP address with integrated HTTPS support via Let's Encrypt. Uses lego to obtain a wildcard certificate for the specified domain. Also supports CloudFlare, GoDaddy, and DigitalOcean certificates.
 
