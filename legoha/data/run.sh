@@ -17,6 +17,10 @@ WAIT_TIME=$(bashio::config 'seconds')
 KEY_TYPE=$(bashio::config 'lets_encrypt.algo')
 CERTFILE=$(bashio::config 'lets_encrypt.certfile')
 KEYFILE=$(bashio::config 'lets_encrypt.keyfile')
+wildcardDomainName=""
+last_ipv6=""
+last_ipv4=""
+last_check="0"
 
 # Function set_os sets the os if needed and validates the value.
 function set_os() {
@@ -199,6 +203,7 @@ function  copy_certificate() {
     bashio::log.info "Copying to:"
     bashio::log.info "$(get_abs_filename /ssl/${CERTFILE})"
     bashio::log.info "$(get_abs_filename /ssl/${KEYFILE})"
+
     cp -f "${CERT_DIR}/certificates/_.${certFileName}.crt" "/ssl/${CERTFILE}"
     cp -f "${CERT_DIR}/certificates/_.${certFileName}.key"  "/ssl/${KEYFILE}"
 }
@@ -207,6 +212,9 @@ function  copy_certificate() {
 function le_renew() {
     local domain_args=()
     local domain=''
+    local email="${EMAIL}"
+    local domainName="${DOMAIN_NAME}"
+    local wildcardDomainName="*.${DOMAIN_NAME}"
 
     domain=$(bashio::config 'domains')
 
@@ -214,19 +222,18 @@ function le_renew() {
 
     if DUCKDNS_TOKEN="${TOKEN}" \
         ./data/lego \
-        --dns duckdns \
-        --domains "${wildcardDomainName}" \
-        --domains "${domainName}" \
         --email "${email}" \
+		--dns duckdns \
+		--domains "${wildcardDomainName}" \
+        --domains "${domainName}" \
         --path "${CERT_DIR}" \
         renew
     then
         bashio::log.info "Certificate successfully renewed."
+        copy_certificate
     else
         bashio::log.warning "Certificate failed to renew!"
     fi
-
-    copy_certificate
 }
 
 # Register/generate certificate if terms accepted
@@ -239,7 +246,7 @@ if bashio::config.true 'lets_encrypt.accept_terms'; then
     set_cpu
     download_lego
 
-    # Check if certificate present and will expire within 30 days
+    # Check if certificate present and will expire within 15 days
     if [ -f /ssl/${CERTFILE} ]
     then
         expiry="$(openssl x509 -enddate -noout -in /ssl/${CERTFILE} | cut -c10-29)"
@@ -249,14 +256,19 @@ if bashio::config.true 'lets_encrypt.accept_terms'; then
     fi
     now="$(date +%s)"
     
-    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 2592000 ]
+    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 1296000 ]
     then
         bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") is good for $(((expiry - now)/86400)) days."
     else
-        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") $(((expiry - now)/86400)) days left."
+        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") $(((expiry - now)/86400)) days left - renewing."
         
-        run_lego
-        copy_certificate
+		if [ -f /ssl/${CERTFILE} ]
+		then
+			le_renew
+		else
+			run_lego
+			copy_certificate
+		fi
     fi
 
 fi
@@ -272,19 +284,22 @@ while true; do
         ipv6=
         bashio::cache.flush_all
         for addr in $(bashio::network.ipv6_address "$IPV6"); do
-	    # Skip non-global addresses
-	    if [[ ${addr} != fe80:* && ${addr} != fc* && ${addr} != fd* ]]; then
-              ipv6=${addr%/*}
-              break
-            fi
+            # Skip non-global addresses
+            if [[ ${addr} != fe80:* && ${addr} != fc* && ${addr} != fd* ]]; then
+                ipv6=${addr%/*}
+                break
+                fi
         done
     fi
 
     # Update DuckDNS with ipv6 address
-    bashio::log.info "Updating DynDNS record:"
     if [[ ${ipv6} == *:* ]]; then
         if answer="$(curl -s "https://www.duckdns.org/update?domains=${DOMAIN_NAME}&token=${TOKEN}&ipv6=${ipv6}&verbose=true")" && [ "${answer}" != 'KO' ]; then
-            bashio::log.info "${answer}"
+            if [ "$answer" != "$last_ipv6" ]; then      # only print on change
+                bashio::log.info "Updating DynDNS IPv6 record:"
+                bashio::log.info "${answer}"
+                last_ipv6="$answer";
+            fi
         else
             bashio::log.warning "${answer}"
         fi
@@ -293,19 +308,26 @@ while true; do
     # Update DuckDNS with ipv4 address
     if [[ -z ${ipv4} || ${ipv4} == *.* ]]; then
         if answer="$(curl -s "https://www.duckdns.org/update?domains=${DOMAIN_NAME}&token=${TOKEN}&ip=${ipv4}&verbose=true")" && [ "${answer}" != 'KO' ]; then
-            bashio::log.info "${answer}"
+            if [ "$answer" != "$last_ipv4" ]; then      # only print on change
+                bashio::log.info "Updating DynDNS IPv4 record:"
+                bashio::log.info "${answer}"
+                last_ipv4="$answer";
+            fi
         else
             bashio::log.warning "${answer}"
         fi
     fi
 
-    # Renew cert if it expires within 30 days
+    # Renew cert if it expires within 15 days
+    now="$(date +%s)"
     expiry="$(openssl x509 -enddate -noout -in /ssl/${CERTFILE} | cut -c10-29)"
     expiry="$(date -d "${expiry}" -D "%b %d %H:%M:%S %Y" +%s)"
-    now="$(date +%s)"
-    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 2592000 ]
+    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 1296000 ]
     then
-        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") good for $(((expiry - now)/86400)) more more days, no need to renew."
+        if [ $((now - last_check)) -ge 86400 ]; then  # only print once a day
+            bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") good for $(((expiry - now)/86400)) more more days, no need to renew."
+            last_check="$now"
+        fi
     else
         bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") has $(((expiry - now)/86400)) days left, renewing..."
         
