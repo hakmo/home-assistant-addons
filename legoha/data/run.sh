@@ -180,8 +180,8 @@ function run_lego() {
     case ${DNS_PROVIDER} in
 
     duckdns)
-    	run_lego_duckdns
-    	;;
+        run_lego_duckdns
+        ;;
 
     *)
         bashio::log.error "Unsupported DNS provider: $(echo -n "${DNS_PROVIDER}"). Only duckdns for now."
@@ -204,6 +204,7 @@ function  copy_certificate() {
     bashio::log.info "$(get_abs_filename /ssl/${CERTFILE})"
     bashio::log.info "$(get_abs_filename /ssl/${KEYFILE})"
 
+    cp -f "${CERT_DIR}/certificates/_.${certFileName}.crt" "${CERT_DIR}/certificates/${certFileName}.crt"
     cp -f "${CERT_DIR}/certificates/_.${certFileName}.crt" "/ssl/${CERTFILE}"
     cp -f "${CERT_DIR}/certificates/_.${certFileName}.key"  "/ssl/${KEYFILE}"
 }
@@ -220,11 +221,18 @@ function le_renew() {
 
     bashio::log.info "Renew certificate for domain: $(echo -n "${domain}")"
 
+    if bashio::config.true 'lets_encrypt.debug'
+    then
+        bashio::log.info "dbg - Renew command:"
+        bashio::log.info "DUCKDNS_TOKEN=$(echo -n "${TOKEN}") DUCKDNS_EMAIL=$(echo -n "${EMAIL}") ./data/lego --email $(echo -n "${email}") --dns duckdns --domains $(echo -n "${wildcardDomainName}") --domains $(echo -n "${domainName}") --path $(echo -n "${CERT_DIR}") renew"
+    fi
+
     if DUCKDNS_TOKEN="${TOKEN}" \
+        DUCKDNS_EMAIL="${EMAIL}" \
         ./data/lego \
         --email "${email}" \
-		--dns duckdns \
-		--domains "${wildcardDomainName}" \
+        --dns duckdns \
+        --domains "${wildcardDomainName}" \
         --domains "${domainName}" \
         --path "${CERT_DIR}" \
         renew
@@ -256,7 +264,7 @@ if bashio::config.true 'lets_encrypt.accept_terms'; then
     fi
     now="$(date +%s)"
     
-    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 1296000 ]
+    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 1728000 ]
     then
         bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") is good for $(((expiry - now)/86400)) days."
     else
@@ -318,11 +326,11 @@ while true; do
         fi
     fi
 
-    # Renew cert if it expires within 15 days
+    # Renew cert if it expires within 20 days
     now="$(date +%s)"
     expiry="$(openssl x509 -enddate -noout -in /ssl/${CERTFILE} | cut -c10-29)"
     expiry="$(date -d "${expiry}" -D "%b %d %H:%M:%S %Y" +%s)"
-    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 1296000 ]
+    if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 1728000 ]
     then
         if [ $((now - last_check)) -ge 86400 ]; then  # only print once a day
             bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") good for $(((expiry - now)/86400)) more more days, no need to renew."
