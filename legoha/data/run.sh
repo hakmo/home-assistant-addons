@@ -262,13 +262,14 @@ if bashio::config.true 'lets_encrypt.accept_terms'; then
     else
         expiry="$(date +%s)"
     fi
+	day="$(date -I)"
     now="$(date +%s)"
     
     if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 1728000 ]
     then
-        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") is good for $(((expiry - now)/86400)) days."
+        bashio::log.info "$(echo -n "${day}"): Certificate /ssl/$(echo -n "${CERTFILE}") is good for $(((expiry - now)/86400)) days."
     else
-        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") $(((expiry - now)/86400)) days left - renewing."
+        bashio::log.info "$(echo -n "${day}"): Certificate /ssl/$(echo -n "${CERTFILE}") $(((expiry - now)/86400)) days left - renewing."
         
 		if [ -f /ssl/${CERTFILE} ]
 		then
@@ -327,17 +328,18 @@ while true; do
     fi
 
     # Renew cert if it expires within 20 days
+	day="$(date -I)"
     now="$(date +%s)"
     expiry="$(openssl x509 -enddate -noout -in /ssl/${CERTFILE} | cut -c10-29)"
     expiry="$(date -d "${expiry}" -D "%b %d %H:%M:%S %Y" +%s)"
     if bashio::config.true 'lets_encrypt.accept_terms' && [ $((expiry - now)) -ge 1728000 ]
     then
         if [ $((now - last_check)) -ge 86400 ]; then  # only print once a day
-            bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") good for $(((expiry - now)/86400)) more more days, no need to renew."
+            bashio::log.info "$(echo -n "${day}"): Certificate /ssl/$(echo -n "${CERTFILE}") good for $(((expiry - now)/86400)) more more days, no need to renew."
             last_check="$now"
         fi
     else
-        bashio::log.info "Certificate /ssl/$(echo -n "${CERTFILE}") has $(((expiry - now)/86400)) days left, renewing..."
+        bashio::log.info "$(echo -n "${day}"): Certificate /ssl/$(echo -n "${CERTFILE}") has $(((expiry - now)/86400)) days left, renewing..."
         
         le_renew
     fi
