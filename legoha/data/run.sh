@@ -111,7 +111,9 @@ function download_lego() {
     legoDist="lego.tar.gz"
     etagFile="/data/.lego.etag"
     arch="_${os}_${cpu}.tar"
-    releaseURL=$(curl -s "https://api.github.com/repos/go-acme/lego/releases/latest" | grep "browser_download_url" | grep "${arch}" | grep -o "https://[^\"]*")
+    releaseURL=$(curl -s "https://api.github.com/repos/go-acme/lego/releases/latest" | grep "browser_download_url" | grep "${arch}" | grep -o "https://[^\"]*" | sed -n '1p')
+    # Could also use below
+    #releaseURL=$(curl -s "https://api.github.com/repos/go-acme/lego/releases/latest" | grep "browser_download_url" | grep "${arch}" | grep -o "https://[^\"]*" | awk 'NR==1{print;exit}')
     
     # If the lego executable doesn't exist then wipe our etags so that it gets re-downloaded
     if [ ! -f /data/lego ]; then
